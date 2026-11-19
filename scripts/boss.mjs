@@ -7,6 +7,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { launch, close, getSessionState, readEndpoints, navigate, openSitePage } from './lib/browser.mjs';
 import { attachCapture, pageFetch } from './lib/net.mjs';
 import {
@@ -404,6 +405,24 @@ function buildResumeUrl(ep, candidateKey) {
   return tpl.replace('{id}', encodeURIComponent(candidateKey));
 }
 
+/** 找「查看简历 / 完整简历」这类入口，找不到返回 null */
+async function findResumeButton(page) {
+  return page
+    .evaluate(() => {
+      const kw = ['查看简历', '完整简历', '简历详情', '在线简历', '查看附件', '看简历'];
+      for (const el of document.querySelectorAll('*')) {
+        const t = (el.innerText || '').trim();
+        if (!t || t.length > 12) continue;
+        if (!kw.some((k) => t.includes(k))) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 20 || r.height < 10) continue;
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), label: t };
+      }
+      return null;
+    })
+    .catch(() => null);
+}
+
 /** 识别左侧会话列表的可点击行（按 y 排序），拿不到就返回空数组由调用方按坐标兜底 */
 async function detectRows(page) {
   return page
@@ -417,7 +436,12 @@ async function detectRows(page) {
         if (r.width < 150 || r.height < 40 || r.height > 130) continue;
         if (r.left > window.innerWidth * 0.42) continue;
         if (r.top < 60) continue;
-        out.push({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), h: Math.round(r.height) });
+        out.push({
+          x: Math.round(r.left + r.width / 2),
+          y: Math.round(r.top + r.height / 2),
+          h: Math.round(r.height),
+          name: (t.match(/^\d{1,2}:\d{2}\s+([\u4e00-\u9fa5]{2,4})/) || t.match(/([\u4e00-\u9fa5]{2,4})/) || [])[1] || '',
+        });
       }
       const seenY = new Set();
       return out
@@ -457,19 +481,58 @@ async function cmdResumeWatch(args) {
     // 反复 newPage() 在 Chrome 157 上会让句柄失效（页面变 about:blank），已实测。
     page = await navigate(context, page, args.url || ep.pages.chat, { settleMs: 4000 });
 
+    // 把窗口拉到最前，否则用户可能根本看不到弹出来的 Chrome（macOS）
+    if (process.platform === 'darwin') {
+      try {
+        execSync('osascript -e \'tell application "Google Chrome" to activate\'', { stdio: 'ignore' });
+      } catch {
+        /* 无 osascript 不影响主流程 */
+      }
+    }
+
     // --auto：由程序逐行点击左侧会话，等价于人工点开；请求仍由应用自己发出
     if (args.auto) {
-      const rows = await detectRows(page);
+      // 页面渲染不稳定（约一半概率拿到空白页），列表没出来就重载重试
+      let rows = await detectRows(page);
+      for (let a = 0; a < 3 && !rows.length; a += 1) {
+        log(C.dim(`  列表未渲染，第 ${a + 1} 次重载…`));
+        page = await navigate(context, page, args.url || ep.pages.chat, { settleMs: 4500 });
+        await sleep(2500);
+        rows = await detectRows(page);
+      }
+
       log(C.dim(`  识别到 ${rows.length} 个会话行${rows.length ? '' : '（改用坐标兜底）'}`));
       await sleep(1500);
       capture.drain();
 
       for (let i = 0; i < limit; i += 1) {
         const spot = rows[i] || { x: 170, y: 140 + i * 76 };
-        await page.mouse.click(spot.x, spot.y).catch(() => {});
+
+        // 元素级点击比坐标点击可靠：坐标点击在部分布局下不触发应用事件
+        let clicked = false;
+        if (spot.name) {
+          try {
+            await page.getByText(spot.name, { exact: false }).first().click({ timeout: 4000 });
+            clicked = true;
+          } catch {
+            clicked = false;
+          }
+        }
+        if (!clicked) await page.mouse.click(spot.x, spot.y).catch(() => {});
         await sleep(2600);
 
-        const found = collectGeekResumes(capture.drain(), { at: nowIso() });
+        let found = collectGeekResumes(capture.drain(), { at: nowIso() });
+
+        // 有些候选人点开后不会自动拉简历，需要再点「查看简历」
+        if (!found.length) {
+          const btn = await findResumeButton(page);
+          if (btn) {
+            await page.mouse.click(btn.x, btn.y).catch(() => {});
+            await sleep(3000);
+            found = collectGeekResumes(capture.drain(), { at: nowIso() });
+          }
+        }
+
         for (const r of found) {
           if (seen.has(r.candidateKey)) continue;
           seen.add(r.candidateKey);
