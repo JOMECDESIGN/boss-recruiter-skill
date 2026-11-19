@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+
+# 浏览器登录态（含 Cookie，绝对不要提交）
+.browser-profile/
+
+# 采集数据：全部本地保留，不入库
+data/*
+!data/.gitkeep
+
+# 系统 & 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 临时
+*.log
+tmp/

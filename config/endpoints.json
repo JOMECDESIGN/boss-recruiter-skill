@@ -1,0 +1,29 @@
+{
+  "$comment": "页面地址与接口映射。apis 段留空时，skill 走「页面内捕获」模式，功能完整；用 boss probe 抓到确切接口后再填，可提速并减少页面渲染开销。",
+  "base": "https://www.zhipin.com",
+  "pages": {
+    "login": "https://www.zhipin.com/web/boss/index",
+    "recommend": "https://www.zhipin.com/web/boss/recommend",
+    "search": "https://www.zhipin.com/web/boss/recommend",
+    "chat": "https://www.zhipin.com/web/boss/chat",
+    "jobs": "https://www.zhipin.com/web/boss/jobs"
+  },
+  "apis": {
+    "candidates": {
+      "url": "",
+      "method": "POST",
+      "note": "推荐牛人/牛人搜索列表接口。用 boss probe --page recommend 抓，确认后填入，例如 /wapi/.../list.json"
+    },
+    "resume": {
+      "url": "",
+      "method": "GET",
+      "note": "候选人详情/简历接口。留空则用 resume --url 逐页打开抽取"
+    },
+    "jobs": {
+      "url": "",
+      "method": "GET",
+      "note": "在招职位列表接口"
+    },
+    "resumeUrlTemplate": ""
+  }
+}

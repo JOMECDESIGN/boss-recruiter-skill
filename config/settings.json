@@ -1,0 +1,14 @@
+{
+  "$comment": "行为边界与频控。改这里比改代码安全；limits 是硬上限，超出会直接拒绝执行。",
+  "throttle": {
+    "minDelayMs": 3000,
+    "maxDelayMs": 7000
+  },
+  "limits": {
+    "maxCandidatesPerRun": 50,
+    "maxResumesPerRun": 20,
+    "maxPagesPerQuery": 5
+  },
+  "maskPiiByDefault": true,
+  "stopOnRiskControl": true
+}

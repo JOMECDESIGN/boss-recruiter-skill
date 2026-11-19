@@ -1,0 +1,31 @@
+{
+  "name": "boss-recruiter-skill",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Agent Skill：以企业招聘者身份驱动真实 Chrome，复用已登录会话来查看候选人、抽取简历、导出数据（合规、只读优先）",
+  "type": "module",
+  "bin": {
+    "boss": "scripts/boss.mjs"
+  },
+  "scripts": {
+    "boss": "node scripts/boss.mjs",
+    "login": "node scripts/boss.mjs login",
+    "doctor": "node scripts/boss.mjs doctor",
+    "test": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "agent-skill",
+    "boss-zhipin",
+    "recruiting",
+    "browser-automation",
+    "playwright-like",
+    "puppeteer"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "playwright-core": "^1.65.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

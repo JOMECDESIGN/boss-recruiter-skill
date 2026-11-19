@@ -1,0 +1,82 @@
+{
+  "$comment": "脱敏样例：模拟 BOSS 企业端「推荐牛人」列表接口与简历详情接口的响应结构，用于离线测试抽取器。字段为公开可见的招聘维度，个人信息已替换。",
+  "listResponse": {
+    "code": 0,
+    "message": "Success",
+    "zpData": {
+      "hasMore": true,
+      "geekList": [
+        {
+          "encryptGeekId": "GEEK_A1",
+          "geekName": "张三",
+          "ageDesc": "28岁",
+          "genderDesc": "男",
+          "degreeName": "本科",
+          "experienceName": "5年",
+          "expectPositionName": "前端工程师",
+          "expectCity": "北京",
+          "expectSalaryDesc": "25-40K",
+          "brandName": "某某科技有限公司",
+          "skills": ["React", "TypeScript", "Node.js"]
+        },
+        {
+          "encryptGeekId": "GEEK_B2",
+          "geekName": "李四",
+          "ageDesc": "31岁",
+          "genderDesc": "女",
+          "degreeName": "硕士",
+          "experienceName": "8年",
+          "expectPositionName": "数据分析师",
+          "expectCity": "杭州",
+          "expectSalaryDesc": "30-50K",
+          "brandName": "某数据服务公司",
+          "skills": ["SQL", "Python", "Tableau"]
+        }
+      ]
+    }
+  },
+  "resumeResponse": {
+    "code": 0,
+    "zpData": {
+      "geekBaseInfo": {
+        "encryptGeekId": "GEEK_A1",
+        "geekName": "张三",
+        "ageDesc": "28岁",
+        "genderDesc": "男",
+        "degreeName": "本科",
+        "experienceName": "5年",
+        "phone": "13800001234",
+        "email": "zhangsan@example.com",
+        "expectPositionName": "前端工程师",
+        "expectCity": "北京",
+        "expectSalaryDesc": "25-40K"
+      },
+      "workExpList": [
+        {
+          "company": "某某科技有限公司",
+          "positionName": "高级前端工程师",
+          "startYear": "2021",
+          "endYear": "至今",
+          "workContent": "负责中后台系统前端架构"
+        },
+        {
+          "company": "某互联网公司",
+          "positionName": "前端工程师",
+          "startYear": "2019",
+          "endYear": "2021",
+          "workContent": "组件库与性能优化"
+        }
+      ],
+      "eduExpList": [
+        {
+          "school": "某大学",
+          "major": "计算机科学与技术",
+          "degreeName": "本科",
+          "startYear": "2015",
+          "endYear": "2019"
+        }
+      ],
+      "professionalSkill": ["React", "TypeScript", "Webpack", "Node.js"]
+    }
+  }
+}

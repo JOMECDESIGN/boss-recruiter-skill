@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>boss-recruiter-skill · 方案说明</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --ink:#1a1a19; --ink-2:#5c5c58; --ink-3:#8a8a84;
+    --line:#e6e5e0; --line-2:#d5d4ce;
+    --accent:#1f6feb; --accent-soft:#eaf1fe;
+    --green:#1a7f4b; --green-soft:#e8f5ee;
+    --amber:#9a6200; --amber-soft:#fdf3e2;
+    --red:#b42318; --red-soft:#fdecea;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.65; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:56px 28px 96px}
+  header{margin-bottom:44px}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  h1{font-size:34px;line-height:1.25;margin:12px 0 10px;letter-spacing:-.02em}
+  .lede{font-size:16px;color:var(--ink-2);max-width:74ch;margin:0}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .badge{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);background:var(--panel)}
+  .badge.ok{border-color:#bfe3cf;background:var(--green-soft);color:var(--green)}
+
+  h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
+     margin:52px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line);font-weight:700}
+  h3{font-size:15px;margin:26px 0 10px}
+  p{margin:0 0 12px;color:var(--ink-2)}
+  strong{color:var(--ink);font-weight:600}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 24px}
+  .card + .card{margin-top:14px}
+
+  /* 流程 */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin-top:6px}
+  .step{flex:1 1 150px;min-width:140px;background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:14px 14px 15px;position:relative}
+  .step .n{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700}
+  .step .t{font-weight:650;font-size:14px;margin:4px 0 4px}
+  .step .d{font-size:12.5px;color:var(--ink-3);line-height:1.5}
+  .arrow{display:flex;align-items:center;padding:0 8px;color:var(--line-2);font-size:16px}
+  @media(max-width:720px){.arrow{display:none}.step{flex:1 1 100%}}
+
+  /* 表格 */
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:4px}
+  th{text-align:left;font-weight:600;color:var(--ink-3);font-size:12px;letter-spacing:.04em;
+     text-transform:uppercase;padding:8px 12px 8px 0;border-bottom:1px solid var(--line-2)}
+  td{padding:11px 12px 11px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+  tr:last-child td{border-bottom:none}
+  td:first-child{color:var(--ink);font-weight:550;white-space:nowrap}
+  code{font-family:var(--mono);font-size:12.5px;background:#f1f0ec;border:1px solid var(--line);
+       padding:1px 5px;border-radius:4px;color:#33322f}
+
+  .verdict{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:720px){.verdict{grid-template-columns:1fr}}
+  .vcard{border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--panel)}
+  .vcard.bad{background:var(--red-soft);border-color:#f3cfca}
+  .vcard.mid{background:var(--amber-soft);border-color:#f0dfc0}
+  .vcard.good{background:var(--green-soft);border-color:#bfe3cf}
+  .vcard .h{font-weight:650;font-size:13.5px;margin-bottom:6px}
+  .vcard .x{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+  .bad .x{color:var(--red)} .mid .x{color:var(--amber)} .good .x{color:var(--green)}
+  .vcard ul{margin:0;padding-left:16px;font-size:12.5px;color:var(--ink-2)}
+  .vcard li{margin:3px 0}
+
+  pre{background:#1c1c1a;color:#e8e6e0;padding:16px 18px;border-radius:10px;overflow-x:auto;
+      font-family:var(--mono);font-size:12.5px;line-height:1.75;margin:10px 0 0}
+  pre .c{color:#8f8c82}
+  pre .g{color:#8fd6a8}
+
+  .tree{font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--ink-2);
+        background:#f1f0ec;border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto}
+  .tree b{color:var(--ink);font-weight:600}
+  .tree i{color:var(--ink-3);font-style:normal}
+
+  .rules{list-style:none;padding:0;margin:0}
+  .rules li{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+  .rules li:last-child{border-bottom:none}
+  .rules .no{color:var(--red);font-weight:700;flex:0 0 auto;font-family:var(--mono)}
+  .rules .yes{color:var(--green);font-weight:700;flex:0 0 auto;font-family:var(--mono)}
+
+  .stat-row{display:flex;gap:12px;flex-wrap:wrap}
+  .stat{flex:1 1 120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .stat .v{font-size:22px;font-weight:700;letter-spacing:-.01em}
+  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+
+  footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3)}
+  .note{font-size:12.5px;color:var(--ink-3);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Agent Skill · 方案说明</div>
+  <h1>boss-recruiter-skill</h1>
+  <p class="lede">以企业招聘者身份驱动本机真实 Chrome，复用已登录会话，把「在招职位 / 候选人 / 简历」变成本地结构化数据。不逆向加密、不代理登录、不绕过验证码。</p>
+  <div class="badges">
+    <span class="badge">playwright-core 驱动 Chrome</span>
+    <span class="badge">页面内响应捕获</span>
+    <span class="badge">jsonl → csv → stats</span>
+    <span class="badge ok">10 / 10 测试通过</span>
+  </div>
+</header>
+
+<h2>一、技术路线为什么这么选</h2>
+<p>BOSS 的风控是组合拳：动态 <code>__zp_stoken__</code>、设备指纹校验、极验 + 易盾、前端反调试。三种方案的实际结果差别很大。</p>
+<div class="verdict">
+  <div class="vcard bad">
+    <div class="x">路线 A</div>
+    <div class="h">纯 HTTP + 逆向签名</div>
+    <ul>
+      <li>安全 JS 每天换版本</li>
+      <li>算法依赖 Canvas/WebGL 指纹</li>
+      <li>维护成本极高，且属破解</li>
+    </ul>
+  </div>
+  <div class="vcard mid">
+    <div class="x">路线 B</div>
+    <div class="h">无头浏览器硬爬</div>
+    <ul>
+      <li>无头环境指纹与真人差异明显</li>
+      <li>token 对了也可能被拒</li>
+      <li>容易误伤账号</li>
+    </ul>
+  </div>
+  <div class="vcard good">
+    <div class="x">本项目</div>
+    <div class="h">真人浏览器 + 复用会话</div>
+    <ul>
+      <li>签名由浏览器自己算</li>
+      <li>指纹就是你日常的本机环境</li>
+      <li>接口改版不影响主流程</li>
+    </ul>
+  </div>
+</div>
+
+<h2>二、数据流</h2>
+<div class="flow">
+  <div class="step"><div class="n">01</div><div class="t">持久化会话</div><div class="d">独立 profile 目录，扫码一次长期复用</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">02</div><div class="t">响应捕获</div><div class="d">监听所有 JSON 响应，不依赖接口路径</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">03</div><div class="t">字段归一化</div><div class="d">按字段特征识别候选人 / 简历 / 职位</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">04</div><div class="t">主键合并</div><div class="d">encryptGeekId 去重，保留首末次出现</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">05</div><div class="t">落地输出</div><div class="d">jsonl 快照 / CSV / stats.json</div></div>
+</div>
+
+<h3>两个关键设计</h3>
+<div class="card">
+  <p><strong>1. 不硬编码接口。</strong>捕获器监听 context 上所有 <code>application/json</code> 响应，抽取器用字段特征判断「这是什么数据」。接口改名、加参数、换版本，主流程照跑。想提速再用 <code>boss probe</code> 抓到的确切路径填进配置走直连。</p>
+  <p><strong>2. 抓不到就退回 DOM。</strong>简历详情若拿不到 JSON，自动退回可见文本抽取，保证不空手而归 —— 两条兜底路径，而不是赌单一接口。</p>
+</div>
+
+<h2>三、命令矩阵</h2>
+<table>
+  <thead><tr><th>命令</th><th>作用</th><th>何时用</th></tr></thead>
+  <tbody>
+    <tr><td><code>boss login</code></td><td>打开企业端等待扫码，保存会话</td><td>首次 / 登录失效</td></tr>
+    <tr><td><code>boss whoami</code></td><td>当前企业名、角色、登录态</td><td>排查「为什么没数据」</td></tr>
+    <tr><td><code>boss probe</code></td><td>记录所有 JSON 接口与字段结构</td><td>页面改版、要提速</td></tr>
+    <tr><td><code>boss jobs</code></td><td>在招职位列表</td><td>先拿到 jobId 再筛候选人</td></tr>
+    <tr><td><code>boss candidates</code></td><td>推荐牛人 / 按职位候选人</td><td>日常主要入口</td></tr>
+    <tr><td><code>boss resume</code></td><td>单个候选人结构化简历</td><td>看具体某人</td></tr>
+    <tr><td><code>boss export</code></td><td>导出 CSV（UTF-8 BOM）</td><td>给 Excel / 同事看</td></tr>
+    <tr><td><code>boss stats</code></td><td>城市 / 学历 / 经验 / 技能聚合</td><td>出画像与漏斗结论</td></tr>
+  </tbody>
+</table>
+
+<h2>四、仓库结构</h2>
+<div class="tree">
+boss-recruiter-skill/<br>
+├── <b>SKILL.md</b>                 <i>技能定义：意图→命令、工作流、硬边界</i><br>
+├── <b>scripts/</b><br>
+│   ├── boss.mjs              <i>CLI 入口，9 个子命令</i><br>
+│   └── lib/<br>
+│       ├── browser.mjs       <i>Chrome + 持久化 profile</i><br>
+│       ├── net.mjs           <i>响应捕获 + 页面内 fetch</i><br>
+│       ├── extract.mjs       <i>字段归一化与特征识别</i><br>
+│       ├── store.mjs         <i>主键合并 + CSV 导出</i><br>
+│       ├── policy.mjs        <i>频控 / 预算 / 审计 / 硬拦截</i><br>
+│       └── util.mjs          <i>路径、IO、脱敏</i><br>
+├── <b>config/</b>                  <i>页面地址、接口映射、频控参数</i><br>
+├── <b>references/</b>              <i>接口映射方法、数据字典、合规说明</i><br>
+├── <b>test/</b>                    <i>9 项离线单测 + 1 项真实浏览器集成测试</i><br>
+└── <b>examples/</b>                <i>自然语言用法与拒绝话术</i>
+</div>
+
+<h2>五、边界写在代码里</h2>
+<p>文档里的提醒容易被忽略，所以关键约束做成了能抛错的逻辑：</p>
+<ul class="rules">
+  <li><span class="no">✕</span><span>批量群发、自动打招呼 —— <code>PolicyError</code> 直接拒绝</span></li>
+  <li><span class="no">✕</span><span>绕过验证码 / 逆向签名 / 代登录 —— 关键词命中即拦截</span></li>
+  <li><span class="no">✕</span><span>单日预算超限 —— 跨进程累计，超出报错而非静默降级</span></li>
+  <li><span class="yes">✓</span><span>个人信息默认掩码：<code>138****1234</code> / <code>zh***@example.com</code></span></li>
+  <li><span class="yes">✓</span><span>风控命中（<code>code=37</code>、环境异常）立即停机，交人工处理</span></li>
+  <li><span class="yes">✓</span><span>每次操作写 <code>data/audit.log</code>，可回溯</span></li>
+</ul>
+
+<h2>六、验证情况</h2>
+<div class="stat-row">
+  <div class="stat"><div class="v">10</div><div class="l">测试项</div></div>
+  <div class="stat"><div class="v">10</div><div class="l">通过</div></div>
+  <div class="stat"><div class="v">0</div><div class="l">失败</div></div>
+  <div class="stat"><div class="v">Chrome 157</div><div class="l">实测环境</div></div>
+</div>
+<p class="note">覆盖：字段归一化、跨接口去重、快照合并语义、CSV 转义与 BOM、策略拦截、风控识别、PII 掩码，以及一项真实浏览器集成测试（本地 HTTP 服务模拟接口，跑通「启动 Chrome → 捕获响应 → 抽取」）。集成测试不访问 BOSS 任何真实页面。</p>
+<p class="note">实现过程中踩到一个坑：<code>puppeteer-core</code> 最新版仍与本机 Chrome 157 的 CDP 协议不兼容（<code>Requesting main frame too early</code>），所有启动方式均失败；改用 <code>playwright-core</code> + <code>channel:'chrome'</code> 后一次通过。</p>
+
+<h2>七、开始使用</h2>
+<pre><span class="c"># 安装</span>
+npm install &amp;&amp; npm link
+boss doctor
+
+<span class="c"># 登录（弹出真实 Chrome，扫码后会话长期复用）</span>
+boss login
+
+<span class="c"># 先小批量验证链路</span>
+boss candidates --limit 20
+boss stats
+
+<span class="c"># 稳定后再按需加量</span>
+boss candidates --job &lt;jobId&gt; --limit 50
+boss resume --url "&lt;候选人详情页&gt;"
+boss export --what candidates
+<span class="g">→ data/clean/candidates.csv</span></pre>
+
+<h2>八、使用前提</h2>
+<div class="card">
+  <p>这套工具处理的是<strong>求职者个人信息</strong>，只在以下前提下使用：</p>
+  <ul class="rules">
+    <li><span class="yes">✓</span><span>你本人拥有已认证的企业招聘账号</span></li>
+    <li><span class="yes">✓</span><span>数据仅用于你的招聘评估，不转卖、不公开、不入公开仓库</span></li>
+    <li><span class="yes">✓</span><span>控制留存期（建议 30 天内清理未推进的候选人数据）</span></li>
+    <li><span class="no">✕</span><span>不具备企业账号、或用途涉及批量采集转售 —— 请勿使用</span></li>
+  </ul>
+  <p class="note">MIT 许可，不提供合规担保。账号风险与法律责任由使用者承担。</p>
+</div>
+
+<footer>
+  boss-recruiter-skill · v0.1.0 · 单文件说明页，无外部依赖
+</footer>
+
+</div>
+</body>
+</html>
