@@ -205,10 +205,13 @@ export function collectCandidates(captured, ctx = {}) {
 }
 
 const JOB_KEYS = [
-  'encryptJobId', 'jobId', 'jobName', 'positionName',
-  'jobStatusDesc', 'statusDesc', 'salaryDesc', 'cityName',
-  'jobDegree', 'jobExperience', 'publishTimeDesc',
+  'encryptJobId', 'jobId', 'jobName', 'positionName', 'salaryDesc', 'jobSalary',
+  'jobStatusDesc', 'statusDesc', 'cityName', 'jobDegree', 'jobExperience',
+  'jobOnlineStatus', 'address', 'publishTimeDesc',
 ];
+
+/** 候选人记录里也带 jobName/encryptJobId，必须排除，否则会把候选人列表当职位列表 */
+const looksLikeCandidate = (o) => o && (o.expectId !== undefined || o.securityId !== undefined) && o.name !== undefined;
 
 /** 从捕获池里找出「像在招职位列表」的数组 */
 export function findJobArrays(captured) {
@@ -217,8 +220,12 @@ export function findJobArrays(captured) {
     if (!node || depth > 6) return;
     if (Array.isArray(node)) {
       if (node.length && node.every((it) => it && typeof it === 'object')) {
+        const first = node[0];
         const avg = node.reduce((s, it) => s + hitCount(it, JOB_KEYS), 0) / node.length;
-        if (avg >= 3) found.push({ url, items: node, score: avg });
+        const jobSpecific = ('salaryDesc' in first ? 2 : 0) + ('jobDegree' in first ? 1 : 0) + ('address' in first ? 1 : 0);
+        if (avg >= 3 && !looksLikeCandidate(first)) {
+          found.push({ url, items: node, score: avg + jobSpecific });
+        }
       }
       node.forEach((it) => walk(it, url, depth + 1));
       return;
@@ -228,17 +235,18 @@ export function findJobArrays(captured) {
     }
   };
   for (const entry of captured) walk(entry.json, entry.url);
-  return found.sort((a, b) => b.score * b.items.length - a.score * a.items.length);
+  return found.sort((a, b) => b.score - a.score);
 }
 
 export function mapJob(raw, ctx = {}) {
   return {
     jobKey: String(pick(raw, ['encryptJobId', 'jobId', 'id'], '')),
     jobName: pick(raw, ['jobName', 'positionName', 'name']),
-    status: pick(raw, ['jobStatusDesc', 'statusDesc', 'status']),
-    salary: pick(raw, ['salaryDesc', 'salary']),
-    city: pick(raw, ['cityName', 'city', 'locationName']),
-    district: pick(raw, ['areaDistrict', 'district']),
+    status: pick(raw, ['jobStatusDesc', 'statusDesc', 'jobOnlineStatus', 'status']),
+    salary: pick(raw, ['salaryDesc', 'jobSalary', 'salary']),
+    city: pick(raw, ['cityName', 'city', 'locationName', 'jobCityName']),
+    district: pick(raw, ['areaDistrict', 'district', 'businessDistrict']),
+    address: pick(raw, ['address', 'jobAddress', 'addressName']),
     degree: pick(raw, ['jobDegree', 'degreeName']),
     experience: pick(raw, ['jobExperience', 'experienceName']),
     publishedAt: pick(raw, ['publishTimeDesc', 'publishTime', 'createTime']),

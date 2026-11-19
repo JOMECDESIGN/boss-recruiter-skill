@@ -61,6 +61,22 @@ boss export --what candidates                # 导出 CSV
 
 常用选项：`--limit` `--scroll` `--job` `--url` `--candidate` `--seconds` `--no-mask`。
 
+## 实测范围（2026-11，真实企业账号）
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| `login` / 会话持久化 | ✅ | 扫码一次，之后复用；能识别企业名 |
+| `whoami` | ✅ | 登录态、关键 Cookie；企业名依赖首屏接口，偶尔为空 |
+| `candidates`（沟通列表） | ✅ | 姓名、年龄、性别、投递职位、沟通时间 |
+| `jobs` | ✅ | 5 个在招职位 + 薪资 + 上下线状态 |
+| `export` / `stats` | ✅ | CSV 带 BOM，统计正常 |
+| `resume` 详情 | ⚠️ 需 `--url` | 列表接口不返回学历/经历/期望城市，必须进详情页 |
+
+**两个必须知道的限制：**
+
+1. `/web/boss/recommend` 已废弃，会 302 到 `/web/chat/index`。所以 `candidates` 拿到的是**你沟通过的候选人**，不是平台智能推荐。
+2. 沟通列表里 `degree`、`lastWorkExpr`、`expectCityName`、`expectSalary` 在 100 条样本中**全部为 null**——不是解析失败，是接口本身就不给。完整画像只能逐个进详情。
+
 ## 设计要点
 
 **1. 不硬编码接口**

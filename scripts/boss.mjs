@@ -494,6 +494,14 @@ async function cmdJobs(args) {
     await sleep(3500);
 
     let captured = capture.drain();
+
+    // 职位页不一定能直接打开；沟通页会顺带拉「已沟通职位」接口，作为兜底
+    if (!findJobArrays(captured).length && ep.pages?.chat) {
+      page = await navigate(context, page, ep.pages.chat);
+      await sleep(3000);
+      captured = captured.concat(capture.drain());
+    }
+
     captured = captured.concat(await scrollAndCapture(page, capture, { rounds: Number(args.scroll || 2) }));
 
     const arrays = findJobArrays(captured);
