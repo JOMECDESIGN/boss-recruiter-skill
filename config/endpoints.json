@@ -1,18 +1,18 @@
 {
-  "$comment": "页面地址与接口映射。apis 段留空时，skill 走「页面内捕获」模式，功能完整；用 boss probe 抓到确切接口后再填，可提速并减少页面渲染开销。",
+  "$comment": "页面地址与接口映射。apis 段留空时 skill 走「页面内捕获」，功能完整；用 boss probe 抓到确切接口后再填可提速。pages 于 2026-11 实测：chat 有效；recommend 会 302 到 /web/chat/index，search 与 jobs 仍待确认。",
   "base": "https://www.zhipin.com",
   "pages": {
     "login": "https://www.zhipin.com/web/boss/index",
+    "chat": "https://www.zhipin.com/web/chat/index",
     "recommend": "https://www.zhipin.com/web/boss/recommend",
     "search": "https://www.zhipin.com/web/boss/recommend",
-    "chat": "https://www.zhipin.com/web/boss/chat",
     "jobs": "https://www.zhipin.com/web/boss/jobs"
   },
   "apis": {
     "candidates": {
-      "url": "",
-      "method": "POST",
-      "note": "推荐牛人/牛人搜索列表接口。用 boss probe --page recommend 抓，确认后填入，例如 /wapi/.../list.json"
+      "url": "/wapi/zprelation/friend/getBossFriendListV2.json",
+      "method": "GET",
+      "note": "沟通列表：zpData.friendList[]，字段 name / age / gender(1男0女) / jobName(投递职位) / expectCityName / degree / lastWorkExpr / expectSalary / encryptUid。注意 degree、expectCityName、lastWorkExpr、expectSalary 在列表接口里基本都是 null，需要进详情页才有值。"
     },
     "resume": {
       "url": "",
@@ -20,9 +20,9 @@
       "note": "候选人详情/简历接口。留空则用 resume --url 逐页打开抽取"
     },
     "jobs": {
-      "url": "",
+      "url": "/wapi/zpjob/job/chatted/jobList",
       "method": "GET",
-      "note": "在招职位列表接口"
+      "note": "已沟通过的职位：zpData[] 含 encryptJobId / jobId / jobName / salaryDesc / address"
     },
     "resumeUrlTemplate": ""
   }

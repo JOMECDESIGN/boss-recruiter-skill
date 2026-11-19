@@ -75,3 +75,35 @@ boss probe --page recommend --seconds 60
 - **`code=37`**：服务端下发 `seed` / `name` / `ts` 要求前端算 `__zp_stoken__`。本项目**不实现**该算法，遇到即停机，请人工在浏览器里完成一次正常访问。
 - **详情页右滑面板**：候选人详情常以抽屉形式加载，`resume` 命令已做滚动触发；若仍为空，改用 `--url` 直接打开详情页。
 - **列表 DOM 虚拟滚动**：`--scroll` 控制滚动屏数，滚太快会漏数据，默认间隔 1.8s。
+
+## 6. 2026-11 实测记录
+
+### 路由
+
+| 地址 | 结果 |
+|---|---|
+| `/web/boss/recommend` | **302 → `/web/chat/index`**，实际加载的是沟通列表，不是推荐牛人 |
+| `/web/chat/index` | ✅ 正常，`friendList` 100 条 |
+| `/web/boss/jobs` | 未确认（待 probe） |
+
+### 沟通列表 friendList 的真实字段值
+
+| 字段 | 列表接口里的值 | 说明 |
+|---|---|---|
+| `name` / `age` / `gender` | 有值 | `gender`: 1=男, 0=女 |
+| `jobName` | 有值 | **投递/沟通的职位**，不是期望岗位 |
+| `encryptUid` / `expectId` / `securityId` | 有值 | 可作为主键 |
+| `lastTime` / `lastTS` | 有值 | 最近沟通时间 |
+| `degree` / `lastWorkExpr` / `expectCityName` / `expectSalary` | **全部为 null** | 列表不返回，进详情才有 |
+
+因此列表层能拿到的只有「姓名、年龄、性别、投递职位、沟通时间」；学历/经历/期望城市/期望薪资必须进详情页。这也是 `appliedJob` 字段单独存在的原因 —— 不要把 `jobName` 映射成 `expectPosition`。
+
+### 职位列表
+
+`/wapi/zpjob/job/chatted/jobList` 返回已沟通过的职位：`encryptJobId` / `jobId` / `jobName` / `salaryDesc` / `address`。
+
+### 环境坑（很重要）
+
+1. **Chrome 157 + Playwright 1.65**：页面句柄的 `url()` 有时不更新（一直报 `about:blank`），但 DOM 是活的。所以 `pickWorkPage()` 在 URL 匹配失败时会退化为「按正文长度判断哪个页面在工作」。
+2. **profile 争用**：上一次 Chrome 未退干净时，新实例会把导航转发给旧进程，表现为「HTTP 200 但页面空白」，极难排查。`launch()` 会检查 `SingletonLock` 指向的 PID 是否存活，死了就清锁，活着就报错。
+3. **puppeteer-core 不可用**：其最新版与 Chrome 157 的 CDP 协议不兼容（`Requesting main frame too early`），必须用 playwright-core。

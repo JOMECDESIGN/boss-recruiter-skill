@@ -7,13 +7,14 @@
  */
 
 const CANDIDATE_KEYS = [
-  'encryptGeekId', 'geekId', 'encryptUserId', 'securityId',
+  'encryptGeekId', 'geekId', 'encryptUserId', 'encryptUid', 'encryptExpectId', 'securityId',
   'geekName', 'name', 'nickName',
   'ageDesc', 'age', 'genderDesc', 'gender',
   'degreeName', 'degree', 'eduLevel',
-  'experienceName', 'workYearDesc', 'workYear',
-  'expectCity', 'expectPositionName', 'expectSalaryDesc',
+  'experienceName', 'lastWorkExpr', 'workYearDesc', 'workYear',
+  'expectCity', 'expectCityName', 'expectPositionName', 'expectSalaryDesc', 'expectSalary',
   'brandName', 'companyName', 'currentCompany',
+  'jobName', 'appliedJob',
 ];
 
 const RESUME_KEYS = [
@@ -84,21 +85,31 @@ const listify = (v) => {
   return [];
 };
 
+/** BOSS 列表里的 age 是数字，详情里是 "28岁" 这类描述 */
+const ageText = (v) => (typeof v === 'number' ? `${v}岁` : v || '');
+/** gender: 1=男, 0=女 */
+const genderText = (v) => (v === 1 || v === '1' ? '男' : v === 0 || v === '0' ? '女' : v || '');
+/** 毫秒时间戳转 ISO，非数字原样返回 */
+const timeText = (v) => (typeof v === 'number' && v > 1e12 ? new Date(v).toISOString() : v || '');
+
 export function mapCandidate(raw, ctx = {}) {
   const key = String(
-    pick(raw, ['encryptGeekId', 'encryptUserId', 'geekId', 'securityId', 'id'], '')
+    pick(raw, ['encryptGeekId', 'encryptUid', 'encryptExpectId', 'encryptUserId', 'geekId', 'expectId', 'securityId', 'id'], '')
   );
   return {
     candidateKey: key,
     name: pick(raw, ['geekName', 'name', 'nickName']),
-    gender: pick(raw, ['genderDesc', 'gender']),
-    age: pick(raw, ['ageDesc', 'age']),
+    gender: genderText(pick(raw, ['genderDesc', 'gender'])),
+    age: ageText(pick(raw, ['ageDesc', 'age'])),
     degree: pick(raw, ['degreeName', 'degree', 'eduLevel']),
-    experience: pick(raw, ['experienceName', 'workYearDesc', 'workYear']),
-    expectPosition: pick(raw, ['expectPositionName', 'positionName', 'jobName']),
-    expectCity: pick(raw, ['expectCity', 'cityName', 'expectLocationName']),
-    expectSalary: pick(raw, ['expectSalaryDesc', 'salaryDesc', 'expectSalary']),
+    experience: pick(raw, ['experienceName', 'lastWorkExpr', 'workYearDesc', 'workYear']),
+    // 期望岗位：只认真正的期望字段，不把 jobName（投递职位）混进来
+    expectPosition: pick(raw, ['expectPositionName', 'positionName']),
+    appliedJob: pick(raw, ['jobName', 'jobTitle']),
+    expectCity: pick(raw, ['expectCityName', 'expectCity', 'cityName', 'expectLocationName']),
+    expectSalary: pick(raw, ['expectSalaryDesc', 'expectSalary', 'salaryDesc']),
     currentCompany: pick(raw, ['brandName', 'companyName', 'currentCompany']),
+    lastContactAt: timeText(pick(raw, ['lastTS', 'lastTime'], '')),
     skills: listify(pick(raw, ['skills', 'skillList', 'tags', 'geekTagList'], [])),
     sourcePage: ctx.sourcePage || '',
     sourceUrl: ctx.sourceUrl || '',

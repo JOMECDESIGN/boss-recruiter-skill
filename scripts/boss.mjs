@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { launch, close, getSessionState, readEndpoints } from './lib/browser.mjs';
+import { launch, close, getSessionState, readEndpoints, navigate } from './lib/browser.mjs';
 import { attachCapture, pageFetch } from './lib/net.mjs';
 import {
   collectCandidates,
@@ -214,11 +214,11 @@ async function cmdLogin(args) {
   const target = args.url || ep.pages?.login || 'https://www.zhipin.com/web/boss/index';
   const waitSec = Number(args.wait || 180);
 
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context);
   try {
     log(C.bold('打开企业端登录页：') + target);
-    await page.goto(target, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    page = await navigate(context, page, target);
     log(C.dim('未登录的话，请在浏览器窗口里选择「我要招人」并扫码登录（企业账号）。'));
     log(C.dim(`等待登录态出现，最多 ${waitSec} 秒…`));
 
@@ -254,13 +254,15 @@ async function cmdLogin(args) {
 
 async function cmdWhoami() {
   const ep = readEndpoints();
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context);
   try {
-    await page
-      .goto(ep.pages?.login || 'https://www.zhipin.com/web/boss/index', { waitUntil: 'domcontentloaded' })
-      .catch(() => {});
-    await sleep(4000);
+    page = await navigate(
+      context,
+      page,
+      ep.pages?.login || 'https://www.zhipin.com/web/boss/index'
+    );
+    await sleep(6000);
     const state = await getSessionState(context);
     const cap = capture.drain();
     const identity = guessIdentity(cap);
@@ -288,13 +290,13 @@ async function cmdProbe(args) {
   if (!url) throw new Error(`config/endpoints.json 里没有 pages.${pageKey}，请用 --url 指定`);
 
   const seconds = Number(args.seconds || 60);
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context, { maxEntries: 800 });
   try {
     log(C.bold('采集探测模式') + C.dim(`  目标页：${url}`));
     log(C.dim(`请在打开的窗口里正常操作（翻页、点开候选人、切换标签），持续 ${seconds} 秒。`));
 
-    await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    page = await navigate(context, page, url);
 
     const all = [];
     const deadline = Date.now() + seconds * 1000;
@@ -339,18 +341,18 @@ async function cmdCandidates(args) {
   const ep = readEndpoints();
   const limit = Number(args.limit || settings.limits.maxCandidatesPerRun);
   const scrolls = Number(args.scroll || settings.limits.maxPagesPerQuery);
-  const pageKey = args.job ? 'search' : 'recommend';
+  const pageKey = args.page || (args.job ? 'search' : 'chat');
   let url = args.url || ep.pages?.[pageKey];
   if (!url) throw new Error('缺少目标页地址');
   if (args.job) url += (url.includes('?') ? '&' : '?') + `jobId=${encodeURIComponent(args.job)}`;
 
   consumeBudget('candidates', 1, 20);
 
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context);
   try {
     log(C.bold('拉取候选人') + C.dim(`  ${shortUrl(url)}  最多 ${limit} 条`));
-    await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    page = await navigate(context, page, url);
     await sleep(3500);
 
     let captured = capture.drain();
@@ -382,7 +384,7 @@ async function cmdCandidates(args) {
     writeCsv(path.join(DIRS.clean, 'candidates.csv'), readJsonl(FILES.candidates));
 
     audit('candidates', { count: candidates.length, page: pageKey, jobId: args.job || '' });
-    table(shown.slice(0, 25), ['name', 'age', 'degree', 'experience', 'expectPosition', 'expectCity', 'expectSalary', 'currentCompany']);
+    table(shown.slice(0, 25), ['name', 'age', 'gender', 'appliedJob', 'degree', 'experience', 'expectCity', 'expectSalary']);
     log(
       `\n${C.green('已入库')}  新增 ${res.added} / 更新 ${res.updated} / 累计 ${res.total}` +
         C.dim('  → data/raw/candidates.jsonl, data/clean/candidates.csv')
@@ -412,11 +414,11 @@ async function cmdResume(args) {
 
   consumeBudget('resumes', 1, 30);
 
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context);
   try {
     log(C.bold('打开候选人详情') + C.dim(`  ${shortUrl(url)}`));
-    await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    page = await navigate(context, page, url);
     await sleep(4000);
     await page.evaluate(() => window.scrollBy({ top: 1200, behavior: 'smooth' })).catch(() => {});
     await sleep(2500);
@@ -485,10 +487,10 @@ async function cmdJobs(args) {
   const url = args.url || ep.pages?.jobs;
   if (!url) throw new Error('config/endpoints.json 缺少 pages.jobs');
 
-  const { context, page } = await launch({ headless: false });
+  let { context, page } = await launch({ headless: false });
   const capture = attachCapture(context);
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    page = await navigate(context, page, url);
     await sleep(3500);
 
     let captured = capture.drain();
@@ -641,7 +643,7 @@ ${C.bold('命令')}
   doctor       环境自检
   probe        操作一遍页面，记录所有 JSON 接口，生成接口映射
   jobs         拉取在招职位列表
-  candidates   拉取候选人（推荐牛人 / 按职位搜索）
+  candidates   拉取候选人（默认沟通列表；--job 按职位搜索）
   resume       打开候选人详情，抽取结构化简历
   export       把本地数据导出为 CSV
   stats        汇总统计
