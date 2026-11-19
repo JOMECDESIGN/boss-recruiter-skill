@@ -9,6 +9,7 @@ import {
   collectCandidates,
   findResumeObject,
   mapResume,
+  collectGeekResumes,
 } from '../scripts/lib/extract.mjs';
 import { upsertByKey, writeCsv } from '../scripts/lib/store.mjs';
 import { assertAllowed, detectRiskControl, PolicyError } from '../scripts/lib/policy.mjs';
@@ -116,4 +117,47 @@ test('风控特征识别', () => {
 test('个人信息掩码', () => {
   assert.equal(maskPhone('13800001234'), '138****1234');
   assert.equal(maskEmail('zhangsan@example.com'), 'zh***@example.com');
+});
+
+test('从 chat/geek/info 响应还原完整简历', () => {
+  const geek = JSON.parse(
+    fs.readFileSync(new URL('./fixtures/geek-info.sample.json', import.meta.url), 'utf8')
+  );
+  const captured = [
+    {
+      url: 'https://www.zhipin.com/wapi/zpjob/chat/geek/info?uid=53333131&geekSource=0',
+      at: '2026-11-19T00:00:00Z',
+      json: geek.resumeResponse,
+    },
+    // 缺 zp_token 时服务端只回空壳，必须被跳过而不是产生空记录
+    {
+      url: 'https://www.zhipin.com/wapi/zpjob/chat/geek/info?uid=1&geekSource=0',
+      at: '2026-11-19T00:00:00Z',
+      json: { code: 0, message: 'Success', zpData: { showTip: false, tip: '' } },
+    },
+    // 无关接口不应被误收
+    {
+      url: 'https://www.zhipin.com/wapi/zpjob/job/chatted/jobList',
+      at: '2026-11-19T00:00:00Z',
+      json: { code: 0, zpData: [{ jobName: 'x' }] },
+    },
+  ];
+
+  const list = collectGeekResumes(captured, { at: '2026-11-19T00:00:00Z' });
+  assert.equal(list.length, 1, '只应收录带 name 的完整简历');
+
+  const r = list[0];
+  assert.equal(r.name, '李健');
+  assert.equal(r.age, '31岁');
+  assert.equal(r.gender, '男');
+  assert.equal(r.degree, '本科');
+  assert.equal(r.experience, '8年');
+  assert.equal(r.city, '杭州');
+  assert.equal(r.appliedJob, '招聘岗（外派交付&内招）');
+  assert.equal(r.currentCompany, '君悦礼品');
+  assert.equal(r.workExperiences.length, 2);
+  assert.equal(r.workExperiences[0].company, '君悦礼品');
+  assert.equal(r.educations.length, 1);
+  assert.equal(r.educations[0].school, '黑龙江东方学院');
+  assert.equal(r.candidateKey, '8d9659cdc1fac5c40nd52N68E1M~');
 });

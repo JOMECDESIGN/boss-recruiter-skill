@@ -7,12 +7,13 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { launch, close, getSessionState, readEndpoints, navigate } from './lib/browser.mjs';
+import { launch, close, getSessionState, readEndpoints, navigate, openSitePage } from './lib/browser.mjs';
 import { attachCapture, pageFetch } from './lib/net.mjs';
 import {
   collectCandidates,
   findResumeObject,
   mapResume,
+  collectGeekResumes,
   extractResumeTextFromDom,
   findJobArrays,
   mapJob,
@@ -403,7 +404,179 @@ function buildResumeUrl(ep, candidateKey) {
   return tpl.replace('{id}', encodeURIComponent(candidateKey));
 }
 
+/** 识别左侧会话列表的可点击行（按 y 排序），拿不到就返回空数组由调用方按坐标兜底 */
+async function detectRows(page) {
+  return page
+    .evaluate(() => {
+      const out = [];
+      const els = [...document.querySelectorAll('li,div,[class*="friend"],[class*="chat-item"]')];
+      for (const el of els) {
+        const t = (el.innerText || '').replace(/\s+/g, ' ').trim();
+        if (t.length < 2 || t.length > 60) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 150 || r.height < 40 || r.height > 130) continue;
+        if (r.left > window.innerWidth * 0.42) continue;
+        if (r.top < 60) continue;
+        out.push({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), h: Math.round(r.height) });
+      }
+      const seenY = new Set();
+      return out
+        .filter((o) => (seenY.has(o.y) ? false : (seenY.add(o.y), true)))
+        .sort((a, b) => a.y - b.y)
+        .slice(0, 15);
+    })
+    .catch(() => []);
+}
+
+/**
+ * 浏览即收录：你在窗口里逐个点开候选人，凡是应用自己发出的简历请求
+ * （/wapi/zpjob/chat/geek/info）都会被捕获并入库。
+ *
+ * 为什么不用直接调接口：该接口的 zp_token 是按请求签名的，复制或重放无效。
+ * 让应用自己发，是唯一既不逆向签名、又能拿到完整简历的方式。
+ */
+async function cmdResumeWatch(args) {
+  const settings = loadSettings();
+  const ep = readEndpoints();
+  const seconds = Number(args.seconds || 180);
+  const limit = Number(args.limit || settings.limits.maxResumesPerRun);
+
+  let { context, page } = await launch({ headless: false });
+  const capture = attachCapture(context, { maxEntries: 800 });
+
+  try {
+    const needMask = settings.maskPiiByDefault && !args['no-mask'];
+    const seen = new Set();
+    const deadline = Date.now() + seconds * 1000;
+    let total = 0;
+    let rawHits = 0;
+    let shellHits = 0;
+    let tick = 0;
+
+    // 用「启动时的首个页面 + 一次导航」，与 candidates / jobs 保持一致。
+    // 反复 newPage() 在 Chrome 157 上会让句柄失效（页面变 about:blank），已实测。
+    page = await navigate(context, page, args.url || ep.pages.chat, { settleMs: 4000 });
+
+    // --auto：由程序逐行点击左侧会话，等价于人工点开；请求仍由应用自己发出
+    if (args.auto) {
+      const rows = await detectRows(page);
+      log(C.dim(`  识别到 ${rows.length} 个会话行${rows.length ? '' : '（改用坐标兜底）'}`));
+      await sleep(1500);
+      capture.drain();
+
+      for (let i = 0; i < limit; i += 1) {
+        const spot = rows[i] || { x: 170, y: 140 + i * 76 };
+        await page.mouse.click(spot.x, spot.y).catch(() => {});
+        await sleep(2600);
+
+        const found = collectGeekResumes(capture.drain(), { at: nowIso() });
+        for (const r of found) {
+          if (seen.has(r.candidateKey)) continue;
+          seen.add(r.candidateKey);
+          const stored = needMask
+            ? {
+                ...r,
+                name: maskName(r.name),
+                phone: maskPhone(r.phone),
+                email: maskEmail(r.email),
+                wechat: r.wechat ? maskPhone(r.wechat) : '',
+              }
+            : r;
+          upsertByKey(FILES.resumes, 'candidateKey', [stored]);
+          total += 1;
+          log(
+            `  [${total}] ${stored.name || '(未命名)'} ${stored.age || ''} ${stored.degree || ''} ` +
+              `${stored.city || ''} | 经历 ${stored.workExperiences.length} | 教育 ${stored.educations.length}`
+          );
+        }
+      }
+
+      writeCsv(path.join(DIRS.clean, 'resumes.csv'), readJsonl(FILES.resumes));
+      audit('resume-auto', { collected: total });
+      log(`\n${C.green('已入库')} 本次 ${total} 份 / 累计 ${readJsonl(FILES.resumes).length} 份`);
+      if (!total) log(C.yellow('  自动点击未触发简历请求：列表行可能没渲染出来，请改用人工点击模式（去掉 --auto）'));
+      return total ? 0 : 1;
+    }
+    log(C.bold('简历收录模式（浏览即抓取）'));
+    log(C.dim(`  请在窗口里逐个点开候选人，每点一个约 2 秒自动收录。`));
+    log(C.dim(`  上限 ${limit} 份 / 监听 ${seconds} 秒，Ctrl+C 可提前结束。\n`));
+
+    while (Date.now() < deadline) {
+      await sleep(2000);
+      tick += 1;
+      const entries = capture.drain();
+
+      // 诊断：区分「没点开」与「点开了但服务端只给空壳」
+      for (const e of entries) {
+        if (!/chat\/geek\/info/.test(e.url)) continue;
+        rawHits += 1;
+        const d = e.json?.zpData || {};
+        if (!d.name) {
+          shellHits += 1;
+          log(C.yellow(`  ! 收到空壳简历响应（字段 ${Object.keys(d).length} 个，无 name）—— zp_token 校验未通过`));
+        }
+      }
+
+      const found = collectGeekResumes(entries, { at: nowIso() });
+
+      for (const r of found) {
+        if (seen.has(r.candidateKey)) continue;
+        seen.add(r.candidateKey);
+
+        const stored = needMask
+          ? {
+              ...r,
+              name: maskName(r.name),
+              phone: maskPhone(r.phone),
+              email: maskEmail(r.email),
+              wechat: r.wechat ? maskPhone(r.wechat) : '',
+            }
+          : r;
+
+        upsertByKey(FILES.resumes, 'candidateKey', [stored]);
+        total += 1;
+
+        const tag = stored.workExperiences.length ? `${stored.workExperiences.length} 段经历` : '无经历';
+        log(
+          `  [${total}] ${stored.name || '(未命名)'}  ${stored.age || ''} ${stored.degree || ''} ` +
+            `${stored.city || ''} | ${tag} | 教育 ${stored.educations.length}` +
+            (stored.phone ? ' | 含手机号' : '')
+        );
+
+        if (total >= limit) {
+          log(C.yellow(`\n已达单次上限 ${limit} 份，停止收录。`));
+          break;
+        }
+      }
+
+      if (total >= limit) break;
+
+      if (tick % 10 === 0) {
+        log(C.dim(`  … ${tick * 2}s：简历请求 ${rawHits} 次（空壳 ${shellHits}），已收录 ${total} 份`));
+      }
+    }
+
+    writeCsv(path.join(DIRS.clean, 'resumes.csv'), readJsonl(FILES.resumes));
+    audit('resume-watch', { collected: total, rawHits, shellHits });
+    log(`\n${C.green('已入库')} 本次 ${total} 份 / 累计 ${readJsonl(FILES.resumes).length} 份`);
+    log(C.dim(`  简历请求 ${rawHits} 次，其中空壳 ${shellHits} 次`));
+    if (!total && !rawHits) {
+      log(C.yellow('  监听期间没有出现任何简历请求 —— 说明窗口里没有点开候选人，不是解析问题。'));
+    } else if (!total && shellHits) {
+      log(C.yellow('  请求都返回空壳：当前会话的 zp_token 校验未通过，请重新 boss login 后重试。'));
+    }
+    log(C.dim('  → data/raw/resumes.jsonl, data/clean/resumes.csv'));
+    if (needMask) log(C.dim('  （个人信息已掩码，加 --no-mask 可存明文）'));
+    return total ? 0 : 1;
+  } finally {
+    capture.detach();
+    await close(context);
+  }
+}
+
 async function cmdResume(args) {
+  if (args.watch) return cmdResumeWatch(args);
+
   const settings = loadSettings();
   assertAllowed('resume');
   const ep = readEndpoints();
@@ -652,7 +825,8 @@ ${C.bold('命令')}
   probe        操作一遍页面，记录所有 JSON 接口，生成接口映射
   jobs         拉取在招职位列表
   candidates   拉取候选人（默认沟通列表；--job 按职位搜索）
-  resume       打开候选人详情，抽取结构化简历
+  resume       打开候选人详情，抽取结构化简历（需 --url）
+  resume --watch  浏览即收录：你点开候选人，我自动抓取简历（推荐）
   export       把本地数据导出为 CSV
   stats        汇总统计
 

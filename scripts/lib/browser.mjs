@@ -8,6 +8,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import { DIRS, FILES, ensureDirs, readJson, sleep } from './util.mjs';
 
@@ -58,9 +59,57 @@ function ensureProfileFree(dir) {
   return { cleared: true, pid };
 }
 
+/**
+ * 结束仍在使用该 profile 的残留 Chrome。
+ * 只匹配包含完整 userDataDir 路径的进程，不会误杀用户日常浏览的 Chrome。
+ */
+async function killStale(userDataDir) {
+  let pids = [];
+  try {
+    const out = execSync(`pgrep -f ${JSON.stringify(userDataDir)}`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    pids = out
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(Number)
+      .filter((p) => p && p !== process.pid);
+  } catch {
+    return { killed: 0 }; // pgrep 无匹配时返回非 0
+  }
+
+  if (!pids.length) return { killed: 0 };
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      /* 已退出 */
+    }
+  }
+  await sleep(1500);
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 0);
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      /* 已退出 */
+    }
+  }
+  await sleep(500);
+  return { killed: pids.length };
+}
+
 export async function launch({ headless = false, userDataDir = DIRS.profile } = {}) {
   ensureDirs();
   fs.mkdirSync(userDataDir, { recursive: true });
+
+  // 上一个实例没退干净时，新实例会把导航转发给它，表现为「HTTP 200 但页面空白」。
+  // 这里主动结束占用同一 profile 的残留进程，再清锁。
+  await killStale(userDataDir);
   ensureProfileFree(userDataDir);
 
   const context = await chromium.launchPersistentContext(userDataDir, {
@@ -161,6 +210,26 @@ export async function pickWorkPage(context, fallback, { timeoutMs = 10_000 } = {
 
   const pages = context.pages().filter((p) => !p.isClosed());
   return withContent || fallback || pages[pages.length - 1];
+}
+
+/**
+ * 页面内容校验：直到真正渲染出内容（body 正文 > 阈值）才返回。
+ * 比信任 url() 可靠 —— 实测 Chrome 157 上 url() 会一直报 about:blank 而 DOM 是活的。
+ */
+export async function openSitePage(context, url, { tries = 4, minBody = 200 } = {}) {
+  for (let i = 0; i < tries; i += 1) {
+    const p = await context.newPage();
+    try {
+      await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 25_000 });
+    } catch {
+      /* 继续校验内容 */
+    }
+    await sleep(3000);
+    const len = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
+    if (len >= minBody) return p;
+    await p.close().catch(() => {});
+  }
+  throw new Error(`打开 ${url} 失败：${tries} 次尝试都没拿到有内容的页面`);
 }
 
 /**

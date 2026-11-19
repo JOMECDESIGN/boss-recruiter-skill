@@ -25,6 +25,8 @@ description: 以企业招聘者身份操作 BOSS 直聘（zhipin.com），复用
 | 看推荐的候选人 / 牛人列表 | `boss candidates --limit 20` |
 | 看某个职位下的候选人 | `boss candidates --job <jobId> --limit 20` |
 | 看某人的简历 | `boss resume --url <候选人详情页>` |
+| 批量收简历 | `boss resume --watch`（推荐：你先点开候选人，自动收录） |
+| 自动点开并收简历（实验） | `boss resume --watch --auto --limit 5` |
 | 导出表格 | `boss export --what candidates`（或 resumes / jobs） |
 | 统计画像 / 漏斗 | `boss stats` |
 | 页面改版、抽不到数据 | `boss probe --page recommend --seconds 60` |
@@ -61,6 +63,12 @@ description: 以企业招聘者身份操作 BOSS 直聘（zhipin.com），复用
 - 频率默认 3–7 秒随机间隔，单次上限 50 位候选人，超出直接报错。
 
 用户要求突破上述边界时，说明原因并拒绝，不要寻找替代绕过方式。
+
+## 简历为什么不能「直接调接口」
+
+简历接口是 `/wapi/zpjob/chat/geek/info?uid=&geekSource=0&securityId=`，必须带请求头 `zp_token`。这个令牌**每个请求都不同**（签名后缀逐次变化），复制上一次的值重放会被服务端拒绝，只返回空壳（`code=0` 但 `zpData` 只有 2 个字段）。
+
+因此拿简历只有一条合规路径：**让应用自己发请求，我们只接收响应**。`boss resume --watch` 做的就是这件事——你在窗口里点开候选人，应用发请求，脚本捕获并入库。不要去实现 `zp_token` 的签名算法。
 
 ## 故障处理
 

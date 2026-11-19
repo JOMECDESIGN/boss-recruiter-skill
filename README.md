@@ -70,12 +70,18 @@ boss export --what candidates                # 导出 CSV
 | `candidates`（沟通列表） | ✅ | 姓名、年龄、性别、投递职位、沟通时间 |
 | `jobs` | ✅ | 5 个在招职位 + 薪资 + 上下线状态 |
 | `export` / `stats` | ✅ | CSV 带 BOM，统计正常 |
-| `resume` 详情 | ⚠️ 需 `--url` | 列表接口不返回学历/经历/期望城市，必须进详情页 |
+| `resume` 详情 | ✅ 接口已定位 | `/wapi/zpjob/chat/geek/info`，含工作/教育/学校/专业/年限 |
 
 **两个必须知道的限制：**
 
 1. `/web/boss/recommend` 已废弃，会 302 到 `/web/chat/index`。所以 `candidates` 拿到的是**你沟通过的候选人**，不是平台智能推荐。
-2. 沟通列表里 `degree`、`lastWorkExpr`、`expectCityName`、`expectSalary` 在 100 条样本中**全部为 null**——不是解析失败，是接口本身就不给。完整画像只能逐个进详情。
+2. 沟通列表里 `degree`、`lastWorkExpr`、`expectCityName`、`expectSalary` 在 100 条样本中**全部为 null**——不是解析失败，是接口本身就不给。完整画像只能进详情。
+3. 简历接口需要 `zp_token` 请求头，**该令牌逐请求签名**，复制重放只会拿到空壳。所以简历只能「浏览即收录」：`boss resume --watch` 后你在窗口里点开候选人，脚本捕获应用自己发出的请求。不要去逆向签名算法。
+
+```bash
+boss resume --watch --limit 10     # 推荐：人工点开，自动收录
+boss resume --watch --auto         # 实验：尝试自动点击左侧会话行
+```
 
 ## 设计要点
 

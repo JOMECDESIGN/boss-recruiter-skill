@@ -1,0 +1,58 @@
+{
+  "$comment": "脱敏样例：/wapi/zpjob/chat/geek/info 的真实响应形状（字段名取自 2026-11 实抓，值已替换）。用于离线验证简历映射。",
+  "resumeResponse": {
+    "code": 0,
+    "message": "Success",
+    "zpData": {
+      "uid": 53333131,
+      "encryptUid": "8d9659cdc1fac5c40nd52N68E1M~",
+      "encryptExpectId": "be97d8d155bb52db03R92d24EVRTxIu3U_qW",
+      "name": "李健",
+      "ageDesc": "31岁",
+      "gender": 1,
+      "edu": "本科",
+      "city": "杭州",
+      "year": "8年",
+      "school": "黑龙江东方学院",
+      "major": "机械设计制造及其自动化",
+      "salaryDesc": "6-11K",
+      "position": "大客户代表",
+      "lastPosition": "大客户代表",
+      "lastPosition2": "区域经理",
+      "toPosition": "招聘岗（外派交付&内招）",
+      "positionName": "招聘岗（外派交付&内招）",
+      "lastCompany": "君悦礼品",
+      "lastCompany2": "君悦礼品",
+      "phone": null,
+      "weixin": null,
+      "labels": [],
+      "expectId": "407205163678209",
+      "securityId": "lEJHnAJz9IQmd-I11rPFFKNv62hLmTw0SP4DmmtyPzrbXQ8xU1RRh6c9rdO6x8XTDrykekmHKZDcwaLTr18wH9h1da",
+      "workExpList": [
+        {
+          "company": "君悦礼品",
+          "positionName": "大客户代表",
+          "startYear": "2021",
+          "endYear": "至今",
+          "workContent": "负责礼品渠道大客户开发与维护"
+        },
+        {
+          "company": "某贸易公司",
+          "positionName": "区域经理",
+          "startYear": "2018",
+          "endYear": "2021",
+          "workContent": "华东区域销售管理"
+        }
+      ],
+      "eduExpList": [
+        {
+          "school": "黑龙江东方学院",
+          "major": "机械设计制造及其自动化",
+          "degreeName": "本科",
+          "startYear": "2014",
+          "endYear": "2018"
+        }
+      ]
+    }
+  }
+}

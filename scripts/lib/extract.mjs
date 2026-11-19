@@ -125,43 +125,73 @@ export function mapResume(raw, ctx = {}) {
   const edus = raw?.eduExpList || raw?.geekEdus || base?.eduExpList || [];
   const projects = raw?.projectExperienceList || base?.projectExperienceList || [];
 
+  const educations = edus.map((e) => ({
+    school: pick(e, ['school', 'schoolName']),
+    major: pick(e, ['major', 'speciality', 'majorName']),
+    degree: pick(e, ['degreeName', 'degree', 'edu']),
+    start: pick(e, ['startYear', 'startDate', 'beginDate', 'beginYear']),
+    end: pick(e, ['endYear', 'endDate', 'finishDate', 'endYear']),
+  }));
+
+  // 有的接口把最高学历平铺在顶层，列表里没有再单列
+  if (!educations.length && (base?.school || base?.major)) {
+    educations.push({
+      school: pick(base, ['school']),
+      major: pick(base, ['major']),
+      degree: pick(base, ['degreeName', 'degree', 'edu']),
+      start: '',
+      end: '',
+    });
+  }
+
   return {
-    candidateKey: String(pick(base, ['encryptGeekId', 'encryptUserId', 'geekId', 'securityId', 'id'], ctx.candidateKey || '')),
+    candidateKey: String(pick(base, ['encryptGeekId', 'encryptUid', 'encryptExpectId', 'geekId', 'securityId', 'uid', 'id'], ctx.candidateKey || '')),
     name: pick(base, ['geekName', 'name', 'realName']),
-    gender: pick(base, ['genderDesc', 'gender']),
-    age: pick(base, ['ageDesc', 'age']),
-    degree: pick(base, ['degreeName', 'degree', 'eduLevel']),
-    experience: pick(base, ['experienceName', 'workYearDesc', 'workYear']),
+    gender: genderText(pick(base, ['genderDesc', 'gender'])),
+    age: ageText(pick(base, ['ageDesc', 'age'])),
+    degree: pick(base, ['degreeName', 'degree', 'eduLevel', 'edu']),
+    experience: pick(base, ['experienceName', 'workYearDesc', 'workYear', 'year']),
     phone: pick(base, ['phone', 'mobile', 'telephone']),
     email: pick(base, ['email', 'mail']),
-    wechat: pick(base, ['wechat', 'weChat', 'wxNumber']),
-    expectPosition: pick(base, ['expectPositionName', 'positionName']),
-    expectCity: pick(base, ['expectCity', 'cityName']),
-    expectSalary: pick(base, ['expectSalaryDesc', 'salaryDesc']),
+    wechat: pick(base, ['wechat', 'weChat', 'wxNumber', 'weixin']),
+    city: pick(base, ['city', 'expectCity', 'cityName']),
+    expectPosition: pick(base, ['expectPositionName']),
+    appliedJob: pick(base, ['toPosition', 'positionName', 'jobName']),
+    currentCompany: pick(base, ['lastCompany', 'lastCompany2', 'companyName', 'brandName']),
+    currentPosition: pick(base, ['lastPosition', 'position']),
+    expectSalary: pick(base, ['expectSalaryDesc', 'salaryDesc', 'expectSalary']),
     workExperiences: works.map((w) => ({
       company: pick(w, ['company', 'brandName', 'companyName']),
-      title: pick(w, ['positionName', 'position', 'title']),
-      start: pick(w, ['startYear', 'startDate', 'startTime']),
-      end: pick(w, ['endYear', 'endDate', 'endTime']),
-      desc: pick(w, ['workContent', 'description', 'responsibility']),
+      title: pick(w, ['positionName', 'position', 'title', 'jobName']),
+      start: pick(w, ['startYear', 'startDate', 'startTime', 'beginDate']),
+      end: pick(w, ['endYear', 'endDate', 'endTime', 'finishDate']),
+      desc: pick(w, ['workContent', 'description', 'responsibility', 'workDesc']),
     })),
-    educations: edus.map((e) => ({
-      school: pick(e, ['school', 'schoolName']),
-      major: pick(e, ['major', 'speciality']),
-      degree: pick(e, ['degreeName', 'degree']),
-      start: pick(e, ['startYear', 'startDate']),
-      end: pick(e, ['endYear', 'endDate']),
-    })),
+    educations,
     projects: projects.map((p) => ({
       name: pick(p, ['name', 'projectName']),
       role: pick(p, ['role', 'roleName']),
       desc: pick(p, ['description', 'projectDescription']),
     })),
-    skills: listify(pick(raw, ['professionalSkill', 'skills', 'skillList'], base?.skills || [])),
+    skills: listify(pick(raw, ['professionalSkill', 'skills', 'skillList', 'highLightGeekResumeWords'], base?.skills || [])),
     sourceUrl: ctx.sourceUrl || '',
     capturedAt: ctx.at || '',
     rawRef: ctx.rawRef || '',
   };
+}
+
+/** 从捕获池里提取简历：只认 /wapi/zpjob/chat/geek/info 且带 name 的完整响应 */
+export function collectGeekResumes(captured, ctx = {}) {
+  const byKey = new Map();
+  for (const e of captured) {
+    if (!/chat\/geek\/info/.test(e.url)) continue;
+    const d = e.json?.zpData;
+    if (!d || !d.name) continue; // 缺 zp_token 时服务端返回空壳，跳过
+    const r = mapResume(d, { ...ctx, sourceUrl: e.url });
+    if (!r.candidateKey) r.candidateKey = String(d.uid || d.encryptUid || r.name);
+    byKey.set(r.candidateKey, r);
+  }
+  return [...byKey.values()];
 }
 
 /** DOM 兜底：把右滑详情面板的可见文本抓下来 */
